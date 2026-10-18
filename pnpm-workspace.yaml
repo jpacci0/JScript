@@ -1,0 +1,8 @@
+packages:
+  - .
+overrides:
+  rollup: npm:@rollup/wasm-node@4.64.8
+allowBuilds:
+  electron: true
+  esbuild: true
+  electron-winstaller: false

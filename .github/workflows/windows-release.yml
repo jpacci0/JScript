@@ -1,0 +1,151 @@
+name: Windows build and release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Install locked dependencies
+        run: npx --yes pnpm@11.25.0 install --frozen-lockfile
+      - name: Check release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'The tag must match package.json version' }
+      - name: Test document engine
+        run: npx pnpm@11.25.0 test
+      - name: Verify Electron source
+        run: |
+          node --check electron/main.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Main process syntax check failed' }
+          node --check electron/preload.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Preload syntax check failed' }
+          node --check electron/print.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Print process syntax check failed' }
+      - name: Build application
+        run: npx pnpm@11.25.0 build
+      - name: Test desktop application
+        run: npx pnpm@11.25.0 test:desktop
+      - name: Package Windows directory
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/package-portable.mjs "JScript-$version-Windows"
+      - name: Test packaged desktop application
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $env:JSCRIPT_TEST_EXECUTABLE = Join-Path $PWD "release/JScript-$version-Windows/JScript.exe"
+          npx pnpm@11.25.0 test:desktop
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged application test failed' }
+      - name: Build portable executable
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: npx pnpm@11.25.0 pack:exe --publish never
+      - name: Build installer
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: npx pnpm@11.25.0 pack:installer --publish never
+      - name: Verify installed application
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $setup = Join-Path $PWD "release/JScript-$version-Setup-x64.exe"
+          if ((Get-Item -LiteralPath $setup).Length -lt 10000000) { throw 'Installer unexpectedly small' }
+          $installed = Join-Path $env:RUNNER_TEMP 'jscript-installer-verification'
+          if (Test-Path -LiteralPath $installed) { throw 'Verification directory already exists' }
+          $process = Start-Process -FilePath $setup -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(120000)) { throw 'Installer timed out' }
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          $env:JSCRIPT_TEST_EXECUTABLE = Join-Path $installed 'JScript.exe'
+          if (-not (Test-Path -LiteralPath $env:JSCRIPT_TEST_EXECUTABLE)) { throw 'Installed executable missing' }
+          node tests/desktop.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke test failed' }
+      - name: Verify distribution files and generate SHA256
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          foreach ($name in @("JScript-$version-Windows.exe", "JScript-$version-Setup-x64.exe")) {
+            $file = Join-Path $PWD "release/$name"
+            if ((Get-Item -LiteralPath $file).Length -lt 10000000) { throw "Executable unexpectedly small: $name" }
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content -LiteralPath "$file.sha256" -Encoding ascii
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: JScript-Windows
+          path: |
+            release/*-Windows.exe
+            release/*-Windows.exe.sha256
+            release/*-Setup-x64.exe
+            release/*-Setup-x64.exe.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  publish:
+    # PRs, main pushes and manual builds never publish. Only an explicitly pushed
+    # version tag can create a release, using the artifacts from this same run.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download verified artifacts and publish tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --name JScript-Windows --dir artifacts
+          if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
+          $files = @(Get-ChildItem -LiteralPath artifacts -File | ForEach-Object { $_.FullName })
+          if ($files.Count -ne 4) { throw 'Expected portable, installer and both checksums' }
+          foreach ($checksumFile in (Get-ChildItem -LiteralPath artifacts -Filter '*.sha256' -File)) {
+            $line = (Get-Content -LiteralPath $checksumFile.FullName -Raw).Trim()
+            if ($line -notmatch '^([a-f0-9]{64})  ([^/\\]+\.exe)$') { throw 'Invalid checksum file' }
+            $expected = $matches[1]
+            $executable = Join-Path artifacts $matches[2]
+            if ((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
+              throw 'Artifact checksum mismatch'
+            }
+          }
+          gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME @files --repo $env:GITHUB_REPOSITORY
+          } else {
+            gh release create $env:GITHUB_REF_NAME @files --repo $env:GITHUB_REPOSITORY --verify-tag --title "JScript $env:GITHUB_REF_NAME" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed; existing assets are never overwritten' }

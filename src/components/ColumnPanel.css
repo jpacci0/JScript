@@ -1,0 +1,25 @@
+.layout-columns { min-width: 0; }
+.layout-columns-caption { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; color: var(--purple); line-height: 14px; }
+.layout-columns-caption strong { font-size: 10px; font-weight: 600; }
+.layout-columns-caption > svg { width: 12px; height: 12px; }
+.layout-columns-help { font-size: 9px; line-height: 1.5; color: var(--secondary); margin: 5px 0 0; }
+.layout-columns-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 5px; }
+.layout-columns-options button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 28px; padding: 0 5px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--surface); font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; }
+.layout-columns-options button svg { width: 12px; height: 12px; flex-shrink: 0; }
+.layout-columns-options button:hover { background: var(--hover); border-color: var(--purple); }
+.layout-columns-options button[aria-pressed="true"] { background: var(--purple-soft); border-color: var(--purple); color: var(--purple); }
+.layout-columns-options button:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+.layout-columns-options button:disabled { opacity: .5; cursor: not-allowed; }
+.layout-columns-options .columns-unwrap { grid-column: 1 / -1; background: transparent; }
+.columns-toolbar { flex-wrap: wrap; min-height: 32px; padding: 3px 25px; }
+.columns-toolbar > span { font-size: 9px; }
+.columns-toolbar button { font-size: 10px; padding: 4px 8px; }
+.columns-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 24px; background: var(--surface-alt); color: var(--text); border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5; }
+.columns-notice button { font: inherit; color: var(--purple); font-weight: 600; background: transparent; border: none; text-decoration: underline; cursor: pointer; }
+@media print { .columns-notice { display: none; } }
+@media (min-width: 1200px) and (max-width: 1359px), (min-width: 680px) and (max-width: 1099px) {
+  .layout-columns { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .layout-columns-caption { margin: 0; flex-shrink: 0; }
+  .layout-columns-options { display: flex; flex-wrap: wrap; }
+  .layout-columns-options button { padding: 0 8px; }
+}

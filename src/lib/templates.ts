@@ -1,0 +1,10 @@
+import type { JSONContent } from '@tiptap/react'
+const text=(value:string)=>({type:'text',text:value})
+const p=(value:string):JSONContent=>({type:'paragraph',content:value?[text(value)]:[]})
+const h=(value:string,level=1):JSONContent=>({type:'heading',attrs:{level},content:[text(value)]})
+export const templates = [
+ { id:'blank', title:'Pagina bianca', caption:'Spazio alle tue idee', content:{type:'doc',content:[p('')]} },
+ { id:'notes', title:'Appunti', caption:'Un pensiero alla volta', content:{type:'doc',content:[h('Le mie idee'),p('Uno spazio per raccogliere quello che conta.'),h('Da ricordare',2),{type:'bulletList',content:[{type:'listItem',content:[p('Il primo pensiero da mettere a fuoco')]},{type:'listItem',content:[p('Una nuova idea da esplorare')]}]},h('Prossimi passi',2),p('Da dove vuoi cominciare?')]} },
+ { id:'letter', title:'Lettera', caption:'Le parole giuste', content:{type:'doc',content:[p('Nome e cognome'),p('Indirizzo · Città'),p(''),p('Alla cortese attenzione di'),p('Nome del destinatario'),p(''),h('Oggetto della lettera',2),p('Gentile destinatario,'),p('scrivi qui il tuo messaggio. Una buona lettera comincia da un pensiero chiaro.'),p(''),p('Cordiali saluti,'),p('Il tuo nome')]} },
+ { id:'report', title:'Progetto', caption:'Dai forma a un obiettivo', content:{type:'doc',content:[h('Una nuova prospettiva'),p('APPUNTI DI PROGETTO'),h('01. L’idea',2),p('Le idee migliori hanno bisogno di spazio. Questo è il tuo: un luogo semplice per scrivere, organizzare i pensieri e trasformarli in qualcosa di concreto.'),h('02. Quello che conta',2),{type:'bulletList',content:[{type:'listItem',content:[p('Un obiettivo chiaro e condiviso')]},{type:'listItem',content:[p('Piccoli passi, una direzione precisa')]},{type:'listItem',content:[p('Il tempo per fermarsi e rileggere')]}]},{type:'blockquote',content:[p('Ogni grande progetto comincia da una pagina bianca.')]},h('03. Il prossimo passo',2),p('Comincia da una frase. Il resto verrà, una parola alla volta.')]} },
+] satisfies Array<{id:string,title:string,caption:string,content:JSONContent}>

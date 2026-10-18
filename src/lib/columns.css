@@ -1,0 +1,30 @@
+/* Editor guides only: layout sections remain ordinary editable table cells. */
+.tiptap .jscript-columns > div[contenteditable='false'] { display: none; }
+.tiptap .jscript-columns .table-plus > tr,
+.tiptap .jscript-columns .table-row-group tr {
+  outline: 1px dashed #d6d1de;
+  outline-offset: 3px;
+}
+.tiptap .jscript-columns .table-plus td,
+.tiptap .jscript-columns .table-plus th {
+  border: 0 !important;
+  background: transparent;
+  padding: 2mm 0;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.tiptap .jscript-columns .table-plus td:first-child,
+.tiptap .jscript-columns .table-plus th:first-child { padding-right: 4mm; }
+.tiptap .jscript-columns .table-plus td:last-child,
+.tiptap .jscript-columns .table-plus th:last-child { padding-left: 4mm; }
+.tiptap .jscript-columns .table-plus td > :first-child,
+.tiptap .jscript-columns .table-plus th > :first-child { margin-top: 0; }
+.tiptap .jscript-columns .table-plus td > :last-child,
+.tiptap .jscript-columns .table-plus th > :last-child { margin-bottom: 0; }
+@media print {
+  .tiptap .jscript-columns .table-plus > tr,
+  .tiptap .jscript-columns .table-row-group tr { outline: none; }
+  .tiptap .jscript-columns .table-plus td,
+  .tiptap .jscript-columns .table-plus th { max-height: none !important; overflow: visible !important; }
+}
