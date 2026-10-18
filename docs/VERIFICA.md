@@ -58,4 +58,4 @@ I test usano un profilo temporaneo separato dalle bozze dell'utente. Le schermat
 
 Queste verifiche coprono documenti semplici. Non certificano la compatibilità con tutte le versioni di Word, con layout complessi o con ogni driver di stampa. La stampa fisica non è stata provata.
 
-Il workflow GitHub è predisposto nel sorgente; non è stato eseguito su un repository remoto di JScript in questa sessione.
+Per gli esiti delle verifiche automatiche di ogni commit e release, consulta [GitHub Actions](https://github.com/jpacci0/JScript/actions). Le verifiche storiche sopra descrivono le prove locali delle rispettive versioni.

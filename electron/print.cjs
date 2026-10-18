@@ -159,6 +159,8 @@ async function withPrintWindow(document, temporaryRoot, callback) {
         sandbox: true,
         nodeIntegration: false,
         javascript: false,
+        // Printing must keep rendering while this isolated window is hidden.
+        backgroundThrottling: false,
         webSecurity: true,
         allowRunningInsecureContent: false,
         spellcheck: false,

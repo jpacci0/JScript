@@ -110,6 +110,15 @@ jobs:
           compression-level: 0
           retention-days: 30
 
+      - name: Upload desktop failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: JScript-test-diagnostics
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
   publish:
     # PRs, main pushes and manual builds never publish. Only an explicitly pushed
     # version tag can create a release, using the artifacts from this same run.

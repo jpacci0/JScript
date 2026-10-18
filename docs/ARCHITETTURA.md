@@ -85,7 +85,7 @@ Lo sviluppo desktop avvia Vite ed Electron. `pnpm build` controlla TypeScript e 
 
 L'eseguibile unico estrae temporaneamente il programma; la cartella autonoma si avvia mantenendo insieme runtime e risorse; l'installer aggiunge l'installazione per l'utente corrente e i collegamenti. Tutte le varianti usano l'archivio nel profilo Windows.
 
-La preparazione di questi pacchetti avviene su Windows x64 con Node.js per Windows. WSL è opzionale per il frontend e non sostituisce questo ambiente di confezionamento. Il workflow GitHub Actions è predisposto per automatizzare verifiche e distribuzione quando il progetto verrà collegato a un repository; la sua presenza non equivale alla pubblicazione del progetto né all'esecuzione di una release.
+La preparazione di questi pacchetti avviene su Windows x64 con Node.js per Windows. WSL è opzionale per il frontend e non sostituisce questo ambiente di confezionamento. Nel repository [jpacci0/JScript](https://github.com/jpacci0/JScript), il workflow GitHub Actions verifica i push su main e le pull request. Un tag `vX.Y.Z` corrispondente alla versione del progetto prepara portable e installer, verifica anche l'app installata e pubblica i download con i rispettivi SHA256. Gli esiti di ciascuna esecuzione sono visibili nella sezione Actions.
 
 ## Evoluzioni possibili
 
