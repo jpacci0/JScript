@@ -57,6 +57,10 @@ const os = require('node:os');
     await page.getByText('Documento Word esportato.', { exact: false }).waitFor();
     assert.equal((await fs.readFile(docx)).subarray(0, 2).toString(), 'PK');
     const pdf = path.join(output, 'roundtrip.pdf');
+    // Reproduce Chromium's URL normalization of Windows short temporary paths.
+    const printTemp = path.join(profile, 'print~regression');
+    await fs.mkdir(printTemp);
+    await app.evaluate(({ app }, directory) => app.setPath('temp', directory), printTemp);
     await app.evaluate(({ dialog }, filename) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename }); }, pdf);
     await page.getByRole('button', { name: 'Opzioni di esportazione' }).click();
     await page.getByRole('button', { name: 'Esporta PDF', exact: true }).click();

@@ -3,7 +3,7 @@
 const { BrowserWindow } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+const { pathToFileURL, fileURLToPath } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const sanitizeHtml = require('sanitize-html');
 const { normalizeLayout, pageDimensions } = require('./layout.cjs');
@@ -142,6 +142,19 @@ a { color: #7756b7; text-decoration: underline; }
 </style></head><body>${content}</body></html>`;
 }
 
+function isAllowedPrintRequest(requestURL, allowedFile) {
+  if (requestURL.startsWith('data:image/')) return true;
+  try {
+    const url = new URL(requestURL);
+    // Chromium leaves ~ unescaped; Node encodes it in Windows 8.3 paths.
+    // Compare the same canonical file URL while keeping the single-file allowlist.
+    return url.protocol === 'file:' && !url.search && !url.hash
+      && pathToFileURL(fileURLToPath(url)).href === allowedFile;
+  } catch {
+    return false;
+  }
+}
+
 async function withPrintWindow(document, temporaryRoot, callback) {
   const html = documentHtml(document);
   const directory = await fs.mkdtemp(path.join(temporaryRoot, 'jscript-print-'));
@@ -171,7 +184,7 @@ async function withPrintWindow(document, temporaryRoot, callback) {
     printSession.setPermissionRequestHandler((_contents, _permission, reply) => reply(false));
     printSession.setPermissionCheckHandler(() => false);
     printSession.webRequest.onBeforeRequest((details, reply) => {
-      reply({ cancel: details.url !== allowedFile && !details.url.startsWith('data:image/') });
+      reply({ cancel: !isAllowedPrintRequest(details.url, allowedFile) });
     });
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event) => event.preventDefault());
@@ -184,4 +197,4 @@ async function withPrintWindow(document, temporaryRoot, callback) {
   }
 }
 
-module.exports = { withPrintWindow, documentHtml };
+module.exports = { withPrintWindow, documentHtml, isAllowedPrintRequest };
