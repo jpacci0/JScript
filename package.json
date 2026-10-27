@@ -1,6 +1,6 @@
 {
   "name": "jscript-editor",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "description": "Il tuo spazio per scrivere. Un editor desktop locale, pulito ed essenziale.",
   "author": "Jacopo",
@@ -14,9 +14,9 @@
     "desktop:dev": "node scripts/dev-desktop.mjs",
     "build": "tsc --noEmit && vite build",
     "start": "electron .",
-    "pack": "npm run build && node scripts/package-portable.mjs JScript-0.3.2-Windows",
-    "pack:exe": "electron-builder --prepackaged release/JScript-0.3.2-Windows --win portable --x64",
-    "pack:installer": "electron-builder --prepackaged release/JScript-0.3.2-Windows --win nsis --x64",
+    "pack": "npm run build && node scripts/package-portable.mjs JScript-0.3.3-Windows",
+    "pack:exe": "electron-builder --prepackaged release/JScript-0.3.3-Windows --win portable --x64",
+    "pack:installer": "electron-builder --prepackaged release/JScript-0.3.3-Windows --win nsis --x64",
     "test:desktop": "node tests/desktop.cjs && node tests/layout-desktop.cjs && node tests/pagination-desktop.cjs && node tests/pagination-hanging-indent.cjs && node tests/columns-desktop.cjs && node tests/ribbon-desktop.cjs",
     "test": "tsx --test tests/*.test.ts"
   },

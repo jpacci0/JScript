@@ -1,8 +1,8 @@
 # Verifica delle versioni
 
-## Sorgente main - 27 ottobre 2026
+## Versione 0.3.3 - barra compatta e formattazione Word
 
-Questa verifica riguarda gli aggiornamenti successivi alla release 0.3.2: barra superiore unica, menu Layout compatti, importazione OOXML avanzata e correzione dei rientri degli elenchi Word al cambio pagina.
+Verifiche locali del 27 ottobre 2026 per la versione 0.3.3: barra superiore unica, menu Layout compatti, importazione OOXML avanzata e correzione dei rientri degli elenchi Word al cambio pagina.
 
 Verifiche locali completate su Windows x64:
 
@@ -13,7 +13,7 @@ Verifiche locali completate su Windows x64:
 - Salvataggio e riapertura, esportazione DOCX/PDF, annulla/ripristina, paragrafi lunghi, tabelle e sezioni a colonne verificati con profili temporanei isolati.
 - Avvio dell'eseguibile portable locale verificato con un profilo dedicato: editor utilizzabile, formattazione degli elenchi corretta e nessun errore JavaScript. I casi di paginazione degli elenchi passano anche sull'app confezionata.
 
-I documenti e le schermate generati dai test rimangono esclusi dai sorgenti. Questi risultati non certificano la compatibilità con ogni documento Word o driver di stampa. La stampa fisica non è stata provata. Gli eseguibili pubblicati nella release 0.3.2 restano distinti da questa verifica del sorgente corrente.
+I documenti e le schermate generati dai test rimangono esclusi dai sorgenti. Questi risultati non certificano la compatibilità con ogni documento Word o driver di stampa. La stampa fisica non è stata provata. Il workflow associato al tag `v0.3.3` verifica i pacchetti Windows e pubblica installer, portable e checksum; il relativo esito è consultabile in GitHub Actions.
 
 ## Versione 0.3.2 — barra Layout riducibile
 

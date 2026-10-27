@@ -41,7 +41,7 @@ React gestisce l'interfaccia; Tiptap e ProseMirror gestiscono selezione, transaz
 
 La paginazione usa `tiptap-pagination-plus` 3.1.0 e le tabelle `tiptap-table-plus` 3.1.0. Il contenuto rimane un solo documento JSON Tiptap con una sola cronologia: i fogli sono la sua rappresentazione nell'editor, non documenti indipendenti.
 
-Il sorgente corrente, successivo alla release pubblicata 0.3.2, unisce titolo e comandi del documento alla barra del logo. `EditorPane` inserisce l'intestazione nello spazio previsto dalla shell tramite un portal React. La scheda Layout mostra quattro pulsanti (Pagina, Margini, Spaziatura e Colonne) con riepiloghi e pannelli a comparsa; Riduci/Mostra nella riga delle schede nasconde gli strumenti. Questa organizzazione riduce l'altezza occupata dall'interfaccia sui portatili. Gli eseguibili già pubblicati non cambiano quando viene aggiornato `main`.
+La versione 0.3.3 unisce titolo e comandi del documento alla barra del logo. `EditorPane` inserisce l'intestazione nello spazio previsto dalla shell tramite un portal React. La scheda Layout mostra quattro pulsanti (Pagina, Margini, Spaziatura e Colonne) con riepiloghi e pannelli a comparsa; Riduci/Mostra nella riga delle schede nasconde gli strumenti. Questa organizzazione riduce l'altezza occupata dall'interfaccia sui portatili. Installer e portable della release 0.3.3 condividono questa interfaccia.
 
 ## Documento e persistenza
 
@@ -91,7 +91,7 @@ La distribuzione carica risorse locali; navigazioni, nuove finestre e richieste 
 
 ## Sviluppo e distribuzione
 
-Lo sviluppo desktop avvia Vite ed Electron. `pnpm build` controlla TypeScript e produce il frontend; `pnpm run pack` costruisce la cartella autonoma Windows x64 `release/JScript-0.3.2-Windows`. `pack:exe` e `pack:installer` confezionano quella cartella esistente usando electron-builder. Occorre quindi rigenerare la cartella quando cambia il sorgente. Il percorso versionato conserva la precedente distribuzione anche se è ancora aperta.
+Lo sviluppo desktop avvia Vite ed Electron. `pnpm build` controlla TypeScript e produce il frontend; `pnpm run pack` costruisce la cartella autonoma Windows x64 `release/JScript-0.3.3-Windows`. `pack:exe` e `pack:installer` confezionano quella cartella esistente usando electron-builder. Occorre quindi rigenerare la cartella quando cambia il sorgente. Il percorso versionato conserva la precedente distribuzione anche se è ancora aperta.
 
 L'eseguibile unico estrae temporaneamente il programma; la cartella autonoma si avvia mantenendo insieme runtime e risorse; l'installer aggiunge l'installazione per l'utente corrente e i collegamenti. Tutte le varianti usano l'archivio nel profilo Windows.
 
