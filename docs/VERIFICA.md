@@ -1,5 +1,20 @@
 # Verifica delle versioni
 
+## Sorgente main - 27 ottobre 2026
+
+Questa verifica riguarda gli aggiornamenti successivi alla release 0.3.2: barra superiore unica, menu Layout compatti, importazione OOXML avanzata e correzione dei rientri degli elenchi Word al cambio pagina.
+
+Verifiche locali completate su Windows x64:
+
+- TypeScript e build Vite; 67 test unitari superati, inclusi importazione Word, attributi sicuri, tabelle unite, immagini, stampa e conservazione della formattazione nei formati nativo e DOCX.
+- Tutte le sei suite desktop superate: `desktop`, `layout-desktop`, `pagination-desktop`, `pagination-hanging-indent`, `columns-desktop` e `ribbon-desktop`.
+- Barra superiore di 56 px, Layout di 44 px e area del documento di 601 px con finestre alte 768 px e larghe 2048, 1424, 1366 e 1024 px. Verificati menu entro lo schermo, campi, tastiera, riduzione degli strumenti e conservazione dei valori in modifica.
+- Paginazione degli elenchi controllata a zoom 85%, su A4 e Letter, con margini normali e stretti e rientri di -18 e -100 pt. Misurati 6.872 caratteri in ciascuno dei quattro casi: nessun carattere nei separatori tra pagine e nessun superamento della larghezza del paragrafo. Anche una singola voce lunga continua su più fogli; il salvataggio conserva i rientri originali.
+- Salvataggio e riapertura, esportazione DOCX/PDF, annulla/ripristina, paragrafi lunghi, tabelle e sezioni a colonne verificati con profili temporanei isolati.
+- Avvio dell'eseguibile portable locale verificato con un profilo dedicato: editor utilizzabile, formattazione degli elenchi corretta e nessun errore JavaScript. I casi di paginazione degli elenchi passano anche sull'app confezionata.
+
+I documenti e le schermate generati dai test rimangono esclusi dai sorgenti. Questi risultati non certificano la compatibilità con ogni documento Word o driver di stampa. La stampa fisica non è stata provata. Gli eseguibili pubblicati nella release 0.3.2 restano distinti da questa verifica del sorgente corrente.
+
 ## Versione 0.3.2 — barra Layout riducibile
 
 Il pannello Layout è riorganizzato in quattro gruppi compatti con campi ed etichette affiancati, testi da 10 px e controlli alti 28 px. La freccia Riduci/Mostra nella riga delle schede chiude o riapre il pannello; quando è chiuso, anche Scrittura e Layout lo riaprono. La logica documentale rimane invariata.

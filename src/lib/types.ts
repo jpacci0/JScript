@@ -15,6 +15,7 @@ export interface StoredDocument {
   content: JSONContent
   updatedAt: string
   layout?: DocumentLayout
+  importWarnings?: string[]
 }
 
 export interface WorkspaceState {

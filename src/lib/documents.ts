@@ -1,10 +1,11 @@
 import type { JSONContent } from '@tiptap/react'
 import DOMPurify from 'dompurify'
-import mammoth from 'mammoth'
+import { importDocx } from './docx-import'
+import { sanitizeWordAttributes } from './word-format'
 import {
   AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, LevelFormat,
-  Packer, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType, PageOrientation, LineRuleType, TableLayoutType,
-  type IParagraphOptions, type IRunOptions, type INumberingOptions,
+  Packer, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType, PageOrientation, LineRuleType, TableLayoutType, ExternalHyperlink, VerticalAlign,
+  type IParagraphOptions, type IRunOptions, type INumberingOptions, type IBorderOptions,
 } from 'docx'
 import type { DocumentLayout, StoredDocument } from './types'
 import { normalizeLayout, pageDimensions } from './layout'
@@ -43,7 +44,7 @@ function columnPercentages(value: unknown): string | undefined {
 
 function attrsFor(type: string, value: unknown): Record<string, unknown> | undefined {
   if (!plain(value)) return undefined
-  const attrs: Record<string, unknown> = {}
+  const attrs: Record<string, unknown> = { ...sanitizeWordAttributes(type, value) }
   if (['paragraph', 'heading'].includes(type) && ['left', 'center', 'right', 'justify'].includes(String(value.textAlign))) attrs.textAlign = value.textAlign
   if (type === 'heading') attrs.level = boundedNumber(value.level, 1, 6) ?? 1
   if (type === 'orderedList') attrs.start = boundedNumber(value.start, 1, 100000) ?? 1
@@ -81,8 +82,34 @@ function attrsFor(type: string, value: unknown): Record<string, unknown> | undef
   return Object.keys(attrs).length ? attrs : undefined
 }
 
+/** Empty rows are valid only when earlier merged cells cover the entire row. */
+function validateMergedRows(table: JSONContent): void {
+  const rows = (table.content ?? []).flatMap(row => row.type === 'tableRowGroup' ? row.content ?? [] : [row])
+  if (!rows.some(row => !row.content?.length)) return
+  let width = 0
+  const remaining: number[] = []
+  for (let index = 0; index < rows.length; index++) {
+    const covered = remaining.map(count => count > 0)
+    let column = 0
+    for (const cell of rows[index].content ?? []) {
+      while (covered[column]) column++
+      const span = Number(cell.attrs?.colspan) || 1
+      if (column + span > 100 || (width && column + span > width)) throw new Error('Celle unite non valide nella tabella.')
+      for (let offset = 0; offset < span; offset++) {
+        if (covered[column + offset]) throw new Error('Celle sovrapposte nella tabella.')
+        covered[column + offset] = true
+        remaining[column + offset] = Number(cell.attrs?.rowspan) || 1
+      }
+      column += span
+    }
+    if (!index) width = covered.length
+    if (!width || Array.from({ length: width }, (_, i) => covered[i]).some(value => !value)) throw new Error('La tabella contiene una riga vuota non coperta da celle unite.')
+    for (let i = 0; i < remaining.length; i++) remaining[i] = Math.max(0, remaining[i] - 1)
+  }
+}
+
 /** Rebuild a bounded allowlisted tree; never pass imported arbitrary attributes to the editor. */
-export function validateNativeDocument(text: string): { title: string; content: JSONContent; layout: DocumentLayout } {
+export function validateNativeDocument(text: string): { title: string; content: JSONContent; layout: DocumentLayout; importWarnings?: string[] } {
   if (new TextEncoder().encode(text).byteLength > MAX_DOCUMENT_BYTES) throw new Error('Il file supera il limite di 25 MB.')
   let value: unknown
   try { value = JSON.parse(text) } catch { throw new Error('Il file JScript non contiene JSON valido.') }
@@ -124,9 +151,10 @@ export function validateNativeDocument(text: string): { title: string; content: 
       }
       if (!node.content.every(validChildren)) throw new Error('La struttura del documento non è supportata.')
     }
-    if (['bulletList', 'orderedList', 'table', 'tableRowGroup', 'tableRow', 'listItem'].includes(type) && !node.content?.length) throw new Error('Il documento contiene una struttura vuota non valida.')
+    if (['bulletList', 'orderedList', 'table', 'tableRowGroup', 'listItem'].includes(type) && !node.content?.length) throw new Error('Il documento contiene una struttura vuota non valida.')
     if (type === 'listItem' && node.content?.[0]?.type !== 'paragraph') throw new Error('Un elenco contiene una voce non valida.')
     if (['tableCell', 'tableHeader', 'blockquote'].includes(type) && !node.content?.length) node.content = [{ type: 'paragraph' }]
+    if (type === 'table') validateMergedRows(node)
     if (type === 'table' && node.attrs?.layout === 'columns') {
       const rows = (node.content ?? []).flatMap(child => child.type === 'tableRowGroup' ? child.content ?? [] : [child])
       if (!rows.every(row => row.content?.length === 2 && row.content.every(cell => (cell.attrs?.colspan ?? 1) === 1 && (cell.attrs?.rowspan ?? 1) === 1))) {
@@ -137,7 +165,7 @@ export function validateNativeDocument(text: string): { title: string; content: 
   }
   const content = read(value.content, 0)
   if (!content.content?.length) content.content = [{ type: 'paragraph' }]
-  return { title: typeof value.title === 'string' ? value.title.trim().slice(0, 200) || 'Senza titolo' : 'Senza titolo', content, layout: normalizeLayout(value.layout) }
+  return { title: typeof value.title === 'string' ? value.title.trim().slice(0, 200) || 'Senza titolo' : 'Senza titolo', content, layout: normalizeLayout(value.layout), ...(Array.isArray(value.importWarnings) && value.importWarnings.length ? { importWarnings: value.importWarnings.filter((warning: unknown): warning is string => typeof warning === 'string').slice(0, 30).map((warning: string) => warning.slice(0, 1000)) } : {}) }
 }
 
 export function sanitizeImportedHtml(html: string): string {
@@ -182,7 +210,7 @@ function checkDocxArchive(data: Uint8Array): void {
   }
 }
 
-export async function importDocument(name: string, data: Uint8Array): Promise<{ title: string; content: string | JSONContent; layout?: DocumentLayout; warnings: string[] }> {
+export async function importDocument(name: string, data: Uint8Array): Promise<{ title: string; content: string | JSONContent; layout?: DocumentLayout; importWarnings?: string[]; warnings: string[] }> {
   if (data.byteLength > MAX_DOCUMENT_BYTES) throw new Error('Il file supera il limite di 25 MB.')
   const ext = name.split('.').pop()?.toLowerCase()
   const title = name.replace(/\.[^.]+$/, '').slice(0, 200) || 'Senza titolo'
@@ -197,17 +225,11 @@ export async function importDocument(name: string, data: Uint8Array): Promise<{ 
   }
   if (ext !== 'docx') throw new Error('Scegli un file .docx, .txt o .jscript. I vecchi file .doc non sono supportati.')
   checkDocxArchive(data)
-  const buffer = new ArrayBuffer(data.byteLength)
-  new Uint8Array(buffer).set(data)
-  const result = await mammoth.convertToHtml({ arrayBuffer: buffer }, {
-    styleMap: ['u => u', 'strike => s'],
-    includeEmbeddedStyleMap: false,
-  })
-  return {
-    title,
-    content: sanitizeImportedHtml(result.value),
-    warnings: ['Importazione DOCX essenziale: impaginazione, intestazioni, piè di pagina, revisioni e stili avanzati possono cambiare.', ...result.messages.filter(m => m.type === 'warning').slice(0, 5).map(m => m.message)],
-  }
+  const imported = await importDocx(data)
+  // Keep the same bounded tree contract as native files; raw XML never reaches the editor.
+  const checked = validateNativeDocument(JSON.stringify({ format: 'jscript', version: 1, title, content: imported.content, layout: imported.layout }))
+  return { ...checked, warnings: imported.warnings }
+
 }
 
 export function safeFilename(title: string): string {
@@ -218,7 +240,7 @@ export function safeFilename(title: string): string {
 }
 
 export function toNativeBytes(doc: StoredDocument): Uint8Array {
-  const bytes = new TextEncoder().encode(JSON.stringify({ format: 'jscript', version: 1, title: doc.title, content: doc.content, updatedAt: doc.updatedAt, layout: normalizeLayout(doc.layout) }, null, 2))
+  const bytes = new TextEncoder().encode(JSON.stringify({ format: 'jscript', version: 1, title: doc.title, content: doc.content, updatedAt: doc.updatedAt, layout: normalizeLayout(doc.layout), ...(doc.importWarnings?.length ? { importWarnings: doc.importWarnings } : {}) }, null, 2))
   if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new Error('Il documento supera il limite di 25 MB. Riduci le dimensioni delle immagini prima di salvarlo.')
   return bytes
 }
@@ -232,8 +254,8 @@ function hexColor(value: unknown): string | undefined {
   return undefined
 }
 
-function textRun(node: JSONContent): TextRun {
-  const options: { -readonly [K in keyof IRunOptions]: IRunOptions[K] } = { text: node.text ?? '' }
+function textRun(node: JSONContent, defaults: IRunOptions = {}): TextRun {
+  const options: { -readonly [K in keyof IRunOptions]: IRunOptions[K] } = { ...defaults, text: node.text ?? '' }
   for (const mark of node.marks ?? []) {
     const attrs = mark.attrs ?? {}
     if (mark.type === 'bold') options.bold = true
@@ -278,7 +300,7 @@ async function imageRun(node: JSONContent, maxWidth: number): Promise<ImageRun |
 
 /** Semantic DOCX export. This is not a lossless Word round trip: advanced layouts,
  * floating objects, tracked changes, comments, headers and footers are not modeled.
- * Hyperlink text is retained; link destinations are not exported in this version.
+ * Supported paragraph, character and table formatting survives export; unsupported Word objects do not.
  */
 export async function toDocx(doc: StoredDocument): Promise<Uint8Array> {
   const layout = normalizeLayout(doc.layout)
@@ -296,7 +318,20 @@ export async function toDocx(doc: StoredDocument): Promise<Uint8Array> {
   const numbering: INumberingOptions['config'][number] [] = []
   type Context = { level?: number; bullet?: boolean; reference?: string; quote?: boolean; maxWidth?: number }
   const alignment = (value: unknown) => ({ left: AlignmentType.LEFT, center: AlignmentType.CENTER, right: AlignmentType.RIGHT, justify: AlignmentType.JUSTIFIED })[String(value) as 'left']
-  const runs = async (nodes: JSONContent[], maxWidth: number): Promise<(TextRun | ImageRun)[]> => Promise.all(nodes.map(node => node.type === 'hardBreak' ? new TextRun({ break: 1 }) : node.type === 'image' ? imageRun(node, maxWidth) : textRun(node)))
+  const runs = async (nodes: JSONContent[], maxWidth: number, defaults: IRunOptions = {}): Promise<(TextRun | ImageRun | ExternalHyperlink)[]> => Promise.all(nodes.map(node => {
+    if (node.type === 'hardBreak') return new TextRun({ break: 1 })
+    if (node.type === 'image') return imageRun(node, maxWidth)
+    const run = textRun(node, defaults)
+    const href = node.marks?.find(mark => mark.type === 'link')?.attrs?.href
+    return safeLink(href) ? new ExternalHyperlink({ children: [run], link: href }) : run
+  }))
+  const wordBorder = (value: unknown): IBorderOptions | undefined => {
+    if (typeof value !== 'string') return undefined
+    const match = value.match(/^(\d+(?:\.\d+)?)pt (solid|double|dashed|dotted|none) (#[0-9a-f]{6})$/i)
+    if (!match) return undefined
+    const style = ({ solid: BorderStyle.SINGLE, double: BorderStyle.DOUBLE, dashed: BorderStyle.DASHED, dotted: BorderStyle.DOTTED, none: BorderStyle.NONE } as const)[match[2] as 'solid']
+    return { style, size: Math.round(Number(match[1]) * 8), color: match[3].slice(1) }
+  }
   const blocks = async (node: JSONContent, context: Context = {}): Promise<(Paragraph | Table)[]> => {
     const children = node.content ?? []
     const recurse = async (items: JSONContent[], ctx: Context = context) => (await Promise.all(items.map(child => blocks(child, ctx)))).flat()
@@ -321,26 +356,53 @@ export async function toDocx(doc: StoredDocument): Promise<Uint8Array> {
       const tableRows = children.flatMap(child => child.type === 'tableRowGroup' ? child.content ?? [] : child.type === 'tableRow' ? [child] : [])
       const columns = node.attrs?.layout === 'columns' && tableRows.every(row => row.content?.length === 2 && row.content.every(cell => (cell.attrs?.colspan ?? 1) === 1 && (cell.attrs?.rowspan ?? 1) === 1))
       const size = columnPercentages(node.attrs?.columnSize)
-      const percentages = columns ? (size?.split(',').length === 2 ? size.split(',').map(Number) : [50, 50]) : undefined
-      const tableWidth = context.maxWidth ?? imageMaxWidth
+      const percentages = size ? size.split(',').map(Number) : columns ? [50, 50] : undefined
+      const tableAttrs = sanitizeWordAttributes('table', node.attrs ?? {})
+      const widthPercent = typeof tableAttrs.wordWidth === 'number' ? tableAttrs.wordWidth : 100
+      const tableWidth = (context.maxWidth ?? imageMaxWidth) * widthPercent / 100
       const total = percentages?.reduce((sum, value) => sum + value, 0) ?? 100
       const widths = percentages?.map(value => Math.max(1, Math.round(tableWidth * 15 * value / total)))
       const noBorder = { style: BorderStyle.NONE, size: 0, color: 'auto' }
       const cellBorders = { top: noBorder, right: noBorder, bottom: noBorder, left: noBorder }
-      const rows = await Promise.all(tableRows.map(async row => new TableRow({ ...(columns ? { cantSplit: false } : {}), children: await Promise.all((row.content ?? []).map(async (cell, index) => {
-        const cellWidth = widths ? Math.max(1, widths[index] / 15 - 4 * 96 / 25.4) : tableWidth
+      const occupied: number[] = []
+      const cellStarts = tableRows.map(row => {
+        let column = 0
+        const starts = (row.content ?? []).map(cell => {
+          while (occupied[column] > 0) column++
+          const start = column
+          const span = Number(cell.attrs?.colspan) || 1
+          for (let i = 0; i < span; i++) occupied[column++] = Number(cell.attrs?.rowspan) || 1
+          return start
+        })
+        for (let i = 0; i < occupied.length; i++) occupied[i] = Math.max(0, occupied[i] - 1)
+        return starts
+      })
+      const rows = await Promise.all(tableRows.map(async (row, rowIndex) => new TableRow({ ...(columns ? { cantSplit: false } : {}), children: await Promise.all((row.content ?? []).map(async (cell, index) => {
+        const cellAttrs = sanitizeWordAttributes(cell.type ?? 'tableCell', cell.attrs ?? {})
+        const span = Number(cell.attrs?.colspan) || 1
+        const gridWidth = widths?.slice(cellStarts[rowIndex][index], cellStarts[rowIndex][index] + span).reduce((sum, value) => sum + value, 0)
+        const padding = Number(cellAttrs.wordPaddingLeft ?? 0) + Number(cellAttrs.wordPaddingRight ?? 0)
+        const cellWidth = gridWidth ? Math.max(1, gridWidth / 15 - (columns ? 4 * 96 / 25.4 : padding * 96 / 72)) : tableWidth
         const content = await recurse(cell.content ?? [], { maxWidth: cellWidth })
         if (!content.length || content[content.length - 1] instanceof Table) content.push(new Paragraph(''))
         return new TableCell({
           children: content, columnSpan: Number(cell.attrs?.colspan) || 1, rowSpan: Number(cell.attrs?.rowspan) || 1,
+          ...(gridWidth ? { width: { size: gridWidth, type: WidthType.DXA } } : {}),
           ...(columns && widths ? {
             width: { size: widths[index], type: WidthType.DXA }, borders: cellBorders,
             margins: { top: 0, bottom: 0, left: index === 0 ? 0 : mmToTwips(4), right: index === 0 ? mmToTwips(4) : 0 },
           } : cell.type === 'tableHeader' ? { shading: { fill: 'F0F2F5', type: ShadingType.CLEAR } } : {}),
+          ...(cellAttrs.wordFill ? { shading: { fill: String(cellAttrs.wordFill).slice(1), type: ShadingType.CLEAR } } : {}),
+          ...(cellAttrs.wordVAlign ? { verticalAlign: ({ top: VerticalAlign.TOP, middle: VerticalAlign.CENTER, bottom: VerticalAlign.BOTTOM } as const)[cellAttrs.wordVAlign as 'top'] } : {}),
+          ...(['Top', 'Right', 'Bottom', 'Left'].some(side => cellAttrs['wordBorder' + side] !== undefined) ? { borders: Object.fromEntries(['Top', 'Right', 'Bottom', 'Left'].map(side => [side.toLowerCase(), wordBorder(cellAttrs['wordBorder' + side])])) } : {}),
+          ...(['Top', 'Right', 'Bottom', 'Left'].some(side => cellAttrs['wordPadding' + side] !== undefined) ? { margins: Object.fromEntries(['Top', 'Right', 'Bottom', 'Left'].filter(side => cellAttrs['wordPadding' + side] !== undefined).map(side => [side.toLowerCase(), Math.round(Number(cellAttrs['wordPadding' + side]) * 20)])) } : {}),
         })
       })) })))
       return rows.length ? [new Table({
-        rows, width: { size: 100, type: WidthType.PERCENTAGE },
+        rows, width: { size: widthPercent, type: WidthType.PERCENTAGE },
+        ...(widths ? { columnWidths: widths, layout: TableLayoutType.FIXED } : {}),
+        ...(tableAttrs.wordAlign ? { alignment: alignment(tableAttrs.wordAlign) } : {}),
+        ...(typeof tableAttrs.wordIndent === 'number' ? { indent: { size: Math.round(tableAttrs.wordIndent * 20), type: WidthType.DXA } } : {}),
         ...(columns ? { columnWidths: widths, layout: TableLayoutType.FIXED, borders: { ...cellBorders, insideHorizontal: noBorder, insideVertical: noBorder } } : {}),
       })] : []
     }
@@ -348,16 +410,30 @@ export async function toDocx(doc: StoredDocument): Promise<Uint8Array> {
     if (node.type === 'horizontalRule') return [new Paragraph({ border: { bottom: { color: 'CCD2DC', size: 6, style: BorderStyle.SINGLE } } })]
     if (['paragraph', 'heading', 'codeBlock'].includes(node.type ?? '')) {
       const levels = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6]
+      const word = sanitizeWordAttributes(node.type ?? 'paragraph', node.attrs ?? {})
+      const imported = word.wordFontSize !== undefined
+      const runDefaults: IRunOptions = imported ? { bold: false, italics: false, size: Math.round(Number(word.wordFontSize) * 2), ...(word.wordFontFamily ? { font: String(word.wordFontFamily).replace(/["']/g, '').split(',')[0].trim() } : {}) } : {}
+      const spacing: NonNullable<IParagraphOptions['spacing']> = {
+        ...(node.type === 'heading' ? { before: 0, after: 160, line: 276, lineRule: LineRuleType.AUTO } : paragraphSpacing),
+        ...(typeof word.wordBefore === 'number' ? { before: Math.round(word.wordBefore * 20) } : {}),
+        ...(typeof word.wordAfter === 'number' ? { after: Math.round(word.wordAfter * 20) } : {}),
+        ...(typeof word.wordLine === 'number' ? { line: Math.round(word.wordLine * 240), lineRule: LineRuleType.AUTO } : {}),
+        ...(typeof word.wordLinePt === 'number' ? { line: Math.round(word.wordLinePt * 20), lineRule: LineRuleType.EXACT } : {}),
+      }
       const options: IParagraphOptions = {
-        children: await runs(children, context.maxWidth ?? imageMaxWidth), alignment: alignment(node.attrs?.textAlign),
-        // Heading rhythm is independent of the document's body-text layout settings.
-        spacing: node.type === 'heading'
-          ? { before: 0, after: 160, line: 276, lineRule: LineRuleType.AUTO }
-          : paragraphSpacing,
+        children: await runs(children, context.maxWidth ?? imageMaxWidth, runDefaults), alignment: alignment(node.attrs?.textAlign),
+        spacing,
+        ...(imported ? { run: runDefaults } : {}),
+        ...(typeof word.wordKeepNext === 'boolean' ? { keepNext: word.wordKeepNext } : {}),
         ...(node.type === 'heading' ? { heading: levels[Math.max(0, Math.min(5, Number(node.attrs?.level ?? 1) - 1))] } : {}),
         ...(context.bullet ? { bullet: { level: context.level ?? 0 } } : {}),
         ...(context.reference ? { numbering: { reference: context.reference, level: context.level ?? 0 } } : {}),
         ...(context.quote ? { indent: { left: 360 }, border: { left: { color: 'DFD5FF', size: 18, style: BorderStyle.SINGLE, space: 10 } } } : {}),
+        ...(['wordIndentLeft', 'wordIndentRight', 'wordIndentFirst'].some(key => word[key] !== undefined) ? { indent: {
+          ...(typeof word.wordIndentLeft === 'number' ? { left: Math.round(word.wordIndentLeft * 20) } : {}),
+          ...(typeof word.wordIndentRight === 'number' ? { right: Math.round(word.wordIndentRight * 20) } : {}),
+          ...(typeof word.wordIndentFirst === 'number' ? word.wordIndentFirst < 0 ? { hanging: Math.round(-word.wordIndentFirst * 20) } : { firstLine: Math.round(word.wordIndentFirst * 20) } : {}),
+        } } : {}),
       }
       return [new Paragraph(options)]
     }

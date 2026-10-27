@@ -1,0 +1,35 @@
+/* A one-row layout bar; controls float above the document when needed. */
+.layout-panel.compact-layout { position: relative; z-index: 22; flex-shrink: 0; height: 44px; min-height: 44px; max-height: none; overflow: visible; padding: 5px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.compact-layout .compact-layout-items { display: flex; align-items: center; height: 33px; gap: 7px; }
+.compact-layout .compact-layout-item { min-width: 0; flex: 1 1 0; }
+.compact-layout .compact-layout-item + .compact-layout-item { border-left: 1px solid var(--border); padding-left: 7px; }
+.compact-layout .compact-layout-trigger { display: flex; align-items: center; justify-content: flex-start; gap: 7px; min-width: 0; width: 100%; height: 31px; border: 1px solid transparent; border-radius: 5px; padding: 0 8px; background: transparent; color: var(--text); font-size: 10px; white-space: nowrap; }
+.compact-layout .compact-layout-trigger > svg:first-child { color: var(--purple); width: 14px; height: 14px; }
+.compact-layout .compact-layout-trigger strong { font-size: 10px; font-weight: 500; }
+.compact-layout .compact-layout-trigger:hover, .compact-layout .compact-layout-trigger[aria-expanded='true'] { background: var(--purple-soft); color: var(--purple); }
+.compact-layout .compact-layout-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--secondary); font-size: 10px; font-weight: 400; }
+.compact-layout .compact-layout-chevron { margin-left: auto; color: var(--muted); }
+.compact-layout .compact-layout-trigger[aria-expanded='true'] .compact-layout-chevron { transform: rotate(180deg); }
+.compact-layout .compact-layout-popover { position: fixed; z-index: 65; width: 292px; max-width: calc(100vw - 16px); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 9px 30px #271b3826; padding: 13px; }
+.compact-layout .compact-layout-popover[hidden] { display: none !important; }
+.compact-layout .compact-layout-heading { display: flex; align-items: center; justify-content: space-between; margin: -3px -3px 9px 0; }
+.compact-layout .compact-layout-heading > strong { color: var(--text); font-size: 11px; font-weight: 600; }
+.compact-layout .compact-layout-heading > button { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--secondary); }
+.compact-layout .compact-layout-heading > button:hover { background: var(--hover); color: var(--purple); }
+.compact-layout .layout-fields { gap: 8px; }
+.compact-layout .page-fields, .compact-layout .margin-fields, .compact-layout .spacing-fields { display: grid; grid-template-columns: minmax(0, 1fr); }
+.compact-layout .layout-field, .compact-layout .margin-fields .layout-field, .compact-layout .spacing-fields .layout-field { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; font-size: 10px; }
+.compact-layout .layout-field > label, .compact-layout .layout-field > span { font-size: 10px; }
+.compact-layout .layout-field select, .compact-layout .layout-number, .compact-layout .layout-number input { font-size: 10px; }
+.compact-layout .layout-field select, .compact-layout .layout-number { height: 28px; }
+.compact-layout .layout-preset { margin: 0 0 12px; }
+.compact-layout .layout-reset { min-height: 28px; margin: 5px 0 0; padding: 0 5px; font-size: 10px; }
+.compact-layout .compact-layout-hint { margin: 11px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.compact-layout .layout-columns { display: block; padding: 0; border: 0; }
+.compact-layout .layout-columns-caption { display: none; }
+.compact-layout .layout-columns-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.compact-layout .layout-columns-options button { min-height: 32px; padding: 3px 5px; font-size: 10px; }
+.compact-layout .layout-columns-help { font-size: 10px; margin-top: 10px; }
+@media (max-width: 1100px) { .layout-panel.compact-layout { padding-left: 9px; padding-right: 9px; } .compact-layout .compact-layout-trigger { gap: 5px; padding: 0 5px; } .compact-layout .compact-layout-items { gap: 3px; } .compact-layout .compact-layout-item + .compact-layout-item { padding-left: 3px; } }
+@media (max-width: 700px) { .compact-layout .compact-layout-summary { display: none; } }
+@media print { .layout-panel.compact-layout { display: none !important; } }

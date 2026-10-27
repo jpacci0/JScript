@@ -11,6 +11,7 @@ const os = require('node:os');
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'jscript-test-'));
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  delete env.JSCRIPT_DEV;
   const packaged = process.env.JSCRIPT_TEST_EXECUTABLE;
   const executablePath = packaged || path.join(root, 'node_modules/electron/dist/electron.exe');
   const app = await _electron.launch({ executablePath, args: [...(packaged ? [] : [root]), '--user-data-dir=' + profile], env, timeout: 30000 });
@@ -96,6 +97,5 @@ const os = require('node:os');
     throw error;
   } finally {
     await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
-    await app.close().catch(() => {});
   }
 })().catch(error => { console.error(error); process.exit(1); });

@@ -25,7 +25,11 @@ Tauri rimane un'alternativa possibile, ma richiederebbe un altro contenitore nat
 | `src/styles.css` | Aspetto dell'app, temi, concentrazione e visualizzazione dei fogli |
 | `src/lib/types.ts` | Tipi del documento, archivio e interfaccia del ponte desktop |
 | `src/lib/storage.ts` | Accesso al salvataggio Electron o, nel browser, a IndexedDB e download |
-| `src/lib/documents.ts` | Validazione `.jscript`, importazione DOCX/HTML/TXT ed esportazione DOCX |
+| `src/lib/documents.ts` | Validazione `.jscript`, ingresso dei formati di importazione ed esportazione DOCX |
+| `src/lib/docx-import.ts` | Lettura OOXML con JSZip, risoluzione degli stili, contenuto, layout e avvisi di compatibilità |
+| `src/lib/word-format.ts` e `.css` | Attributi Word tipizzati, serializzazione HTML e presentazione nell'editor |
+| `src/lib/pagination.ts` | Paginazione visuale, riconteggio e aggiornamento dopo modifiche, font e immagini |
+| `src/components/LayoutPanel.tsx` | Controlli di pagina, margini, spaziatura e colonne nei pannelli a comparsa |
 | `src/lib/templates.ts` | Documenti iniziali per pagina bianca, appunti, lettera e progetto |
 | `electron/preload.cjs` | Espone al frontend soltanto le operazioni desktop previste |
 | `electron/main.cjs` | Finestra, dialoghi, archivio locale, scritture su file e gestione della chiusura |
@@ -37,15 +41,15 @@ React gestisce l'interfaccia; Tiptap e ProseMirror gestiscono selezione, transaz
 
 La paginazione usa `tiptap-pagination-plus` 3.1.0 e le tabelle `tiptap-table-plus` 3.1.0. Il contenuto rimane un solo documento JSON Tiptap con una sola cronologia: i fogli sono la sua rappresentazione nell'editor, non documenti indipendenti.
 
-Nella versione 0.3.2 il pannello Layout è una barra compatta con quattro gruppi (Pagina, Margini, Spaziatura e Colonne), etichette e campi affiancati, testi da 10 px e controlli alti 28 px. Le frecce numeriche restano visibili. Il comando Riduci/Mostra è nella riga delle schede; un clic su Scrittura o Layout riapre anche un pannello chiuso. La riorganizzazione non modifica la logica documentale.
+Il sorgente corrente, successivo alla release pubblicata 0.3.2, unisce titolo e comandi del documento alla barra del logo. `EditorPane` inserisce l'intestazione nello spazio previsto dalla shell tramite un portal React. La scheda Layout mostra quattro pulsanti (Pagina, Margini, Spaziatura e Colonne) con riepiloghi e pannelli a comparsa; Riduci/Mostra nella riga delle schede nasconde gli strumenti. Questa organizzazione riduce l'altezza occupata dall'interfaccia sui portatili. Gli eseguibili già pubblicati non cambiano quando viene aggiornato `main`.
 
 ## Documento e persistenza
 
-Un documento di lavoro contiene identificativo, titolo, contenuto Tiptap, impostazioni Layout e data di aggiornamento. L'archivio contiene la lista dei documenti, quello attivo e una versione dello schema.
+Un documento di lavoro contiene identificativo, titolo, contenuto Tiptap, impostazioni Layout, eventuali avvisi di importazione e data di aggiornamento. L'archivio contiene la lista dei documenti, quello attivo e una versione dello schema.
 
 Ogni modifica programma un salvataggio dopo circa 400 ms. Una coda serializza le scritture. Il processo desktop scrive prima in un file temporaneo e lo rinomina al completamento; prima di sostituire l'archivio conserva la precedente versione JSON leggibile in `documents.json.bak`. Alla riapertura prova il file principale e poi il backup se il primo manca o non può essere letto. La validazione dello schema avviene inoltre nel frontend.
 
-La copia nativa `.jscript` è un JSON versionato con `format: "jscript"`, `version: 1`, titolo, contenuto e data. È il formato da usare per riaprire in JScript le caratteristiche supportate, incluse le immagini incorporate. Il salvataggio della bozza e l'esportazione di una copia sono operazioni distinte.
+La copia nativa `.jscript` è un JSON versionato con `format: "jscript"`, `version: 1`, titolo, contenuto, layout, eventuali avvisi di importazione e data. È il formato da usare per riaprire in JScript le caratteristiche supportate, incluse immagini incorporate e proprietà Word. I documenti precedenti ricevono i valori predefiniti per i campi mancanti. Il salvataggio della bozza e l'esportazione di una copia sono operazioni distinte.
 
 I dati desktop sono nel percorso `userData` di Electron, normalmente `%APPDATA%/JScript`. Non vengono spostati insieme all'eseguibile. La copia `.bak` è un recupero locale precedente, non un sistema di versionamento né una sincronizzazione.
 
@@ -53,15 +57,21 @@ Nel browser `storage.ts` usa IndexedDB. Il controllo `window.jscript` separa le 
 
 ## DOCX, layout e PDF
 
-L'importazione passa da Mammoth a HTML, poi da DOMPurify al contenuto Tiptap. Il filtro elimina contenuti non supportati, stili arbitrari e immagini remote. Prima della conversione sono controllati dimensioni e metadati dell'archivio DOCX.
+L'importazione DOCX legge il pacchetto con JSZip e traduce un sottoinsieme OOXML direttamente nel modello Tiptap. Risolve valori predefiniti, catene di stili, proprietà dirette, font e colori di tema; recupera paragrafi, elenchi, collegamenti ammessi, immagini incorporate e tabelle con celle unite. Sono controllati dimensioni, numero di parti, complessità e profondità XML; DTD ed entità sono rifiutati. Le relazioni esterne non avviano richieste di rete. L'importazione HTML rimane separata e passa attraverso DOMPurify.
 
-L'esportazione `docx` ricostruisce semanticamente paragrafi, titoli, formattazioni supportate, elenchi, immagini e tabelle. Non conserva un pacchetto Word originale da modificare senza perdite. I link mantengono il testo ma non la destinazione nell'esportazione corrente.
+`WordFormatting` valida e limita gli attributi ammessi, fra cui font, spaziature, rientri, dimensioni delle tabelle, bordi e riempimenti delle celle. Le proprietà sopravvivono a JSON nativo e HTML. Le decorazioni ProseMirror aggiornano anche le viste personalizzate delle tabelle: non si riscrivono direttamente i nodi DOM osservati dall'editor, evitando cicli di ricostruzione. Le immagini mantengono le dimensioni e il rapporto specificati dal documento quando disponibili.
 
-L'editor distribuisce automaticamente il contenuto su fogli separati, comprese le righe vuote. Numero di pagine e flusso del testo vengono ricalcolati dopo le modifiche al contenuto o alle impostazioni Layout. Formato, orientamento, margini e spaziature sono salvati per documento, normalizzati e recuperati anche dai file `.jscript`; i documenti precedenti usano A4 verticale e margini di 20 mm.
+L'esportazione `docx` ricostruisce semanticamente paragrafi, titoli, formattazioni supportate, elenchi, immagini e tabelle. Conserva gli attributi Word supportati, le celle unite e le destinazioni dei collegamenti ammessi, ma non un pacchetto Word originale da modificare senza perdite.
 
-Il PDF viene prodotto separatamente da Chromium usando le stesse impostazioni. Il DOCX contiene le corrispondenti proprietà di sezione e di paragrafo ed è impaginato dal programma che lo apre. La paginazione dell'editor non promette una corrispondenza esatta con Word o PDF: font, tabelle e interruzioni possono differire. L'importazione DOCX non recupera il layout originale.
+L'editor distribuisce automaticamente il contenuto su fogli separati, comprese le righe vuote. Numero di pagine e flusso del testo vengono ricalcolati dopo modifiche, ridimensionamenti e caricamento di font o immagini. Le interruzioni visuali sono decorazioni: non aggiungono caratteri né paragrafi al documento. Formato, orientamento, margini e spaziature sono salvati per documento, normalizzati e recuperati anche dai file `.jscript`; i documenti precedenti usano A4 verticale e margini di 20 mm.
 
-Non sono implementate sezioni Word con impostazioni di pagina indipendenti, intestazioni e piè di pagina modificabili, note a piè di pagina, revisioni, commenti, sommario automatico o oggetti flottanti. La struttura laterale elenca i titoli per navigare nel testo. La ricerca corrente lavora sui singoli nodi di testo: una frase spezzata fra formattazioni diverse può non risultare come un'unica corrispondenza.
+Nel primo paragrafo di un elenco Word, il rientro sporgente posiziona il marcatore prima della tabulazione che precede il testo. Il renderer mantiene il valore negativo nel modello e lo segnala con `data-word-hanging`, ma annulla il secondo rientro del testo nel primo figlio dell'elemento elenco. Questo evita che Chromium disponga poche lettere accanto al separatore flottante fra pagine. Paragrafi ordinari e paragrafi successivi nello stesso elemento elenco mantengono i propri rientri. PDF e stampa applicano la stessa correzione contestuale; l'esportazione Word conserva il valore originale.
+
+Il PDF viene prodotto separatamente da Chromium usando le stesse impostazioni Layout e un filtro HTML/CSS indipendente. Il DOCX contiene le corrispondenti proprietà di sezione e di paragrafo ed è impaginato dal programma che lo apre. L'importazione recupera geometria e margini della prima sezione per i formati A4, A5 e Letter; formati personalizzati e valori fuori intervallo vengono adattati. La paginazione dell'editor non promette una corrispondenza esatta con Word o PDF: disponibilità dei font, tabelle e interruzioni possono differire.
+
+Non sono implementate sezioni Word con impostazioni di pagina indipendenti, intestazioni e piè di pagina modificabili, note a piè di pagina o commenti. Le revisioni sono lette come testo finale; campi e formule vengono conservati o approssimati come testo senza ricalcolo. Immagini e tabelle flottanti passano nel flusso normale; tabulazioni, numerazioni speciali e alcuni stili sono semplificati. Gli avvisi rilevati sono visibili in **Dettagli Word** e persistono nella bozza e nel file nativo.
+
+Le spaziature importate possono variare da paragrafo a paragrafo. Una modifica esplicita in Layout sostituisce i corrispondenti attributi Word per rendere effettivi i nuovi valori, anche nei titoli importati. La struttura laterale elenca i titoli per navigare nel testo. La ricerca corrente lavora sui singoli nodi di testo: una frase spezzata fra formattazioni diverse può non risultare come un'unica corrispondenza.
 
 Le estensioni Tiptap utilizzate sono quelle open source; il progetto non dipende dai servizi Tiptap Pages o Conversion.
 

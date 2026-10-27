@@ -11,7 +11,39 @@ const { normalizeLayout, pageDimensions } = require('./layout.cjs');
 const MAX_HTML_BYTES = 40 * 1024 * 1024;
 const COLOR = /^(?:#[\da-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\)|[a-z]{1,24})$/i;
 const LENGTH = /^\d{1,4}(?:\.\d+)?(?:px|pt|em|rem|%)$/;
+const PARAGRAPH_SPACE = /^(?:\d{1,3}|1[0-4]\d{2}|15[0-7]\d|158[0-4])(?:\.\d{1,4})?pt$/;
+const SIGNED_INDENT = /^(?:-(?:\d{1,2}|100)|\d{1,3}|1000)(?:\.\d{1,4})?pt$/;
+const PADDING = /^(?:\d{1,2}|100)(?:\.\d{1,4})?pt$/;
+const POINT_LINE = /^(?:[1-9]\d?|[12]\d{2}|300)(?:\.\d{1,4})?pt$/;
+const BORDER_WIDTH_TOKEN = String.raw`(?:\d|1[0-2])(?:\.\d{1,4})?pt`;
+const BORDER_STYLE_TOKEN = '(?:solid|double|dashed|dotted|none)';
+const RGB_BYTE = String.raw`(?:\d{1,2}|1\d{2}|2[0-4]\d|25[0-5])`;
+const BORDER_COLOR_TOKEN = String.raw`(?:#[\da-f]{6}|rgb\(\s*${RGB_BYTE}\s*,\s*${RGB_BYTE}\s*,\s*${RGB_BYTE}\s*\))`;
+const BORDER = new RegExp(`^${BORDER_WIDTH_TOKEN} ${BORDER_STYLE_TOKEN} ${BORDER_COLOR_TOKEN}$`, 'i');
+const valueList = token => new RegExp(`^${token}(?:\\s+${token}){0,3}$`, 'i');
+const withoutAnchors = pattern => pattern.source.slice(1, -1);
+const MARGINS = valueList(`(?:${withoutAnchors(PARAGRAPH_SPACE)}|${withoutAnchors(SIGNED_INDENT)}|auto|0)`);
+const PADDINGS = valueList(`(?:${withoutAnchors(PADDING)}|0)`);
+const BORDER_STYLES = {
+  border: [BORDER],
+  'border-width': [valueList(BORDER_WIDTH_TOKEN)],
+  'border-style': [valueList(BORDER_STYLE_TOKEN)],
+  'border-color': [valueList(BORDER_COLOR_TOKEN)],
+};
+for (const side of ['top', 'right', 'bottom', 'left']) {
+  BORDER_STYLES[`border-${side}`] = [BORDER];
+  BORDER_STYLES[`border-${side}-width`] = [new RegExp(`^${BORDER_WIDTH_TOKEN}$`)];
+  BORDER_STYLES[`border-${side}-style`] = [new RegExp(`^${BORDER_STYLE_TOKEN}$`)];
+  BORDER_STYLES[`border-${side}-color`] = [new RegExp(`^${BORDER_COLOR_TOKEN}$`, 'i')];
+}
+const WORD_FORMAT_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'td', 'th']);
 const IMAGE_DATA = /^data:image\/(?:png|jpeg|jpg|gif|webp);base64,[a-z\d+/=\s]+$/i;
+
+function imageDimension(value) {
+  if (typeof value !== 'string' || !/^\d+(?:\.\d{1,4})?$/.test(value)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 1 && number <= 10000 ? number : null;
+}
 
 function escapeText(value) {
   return value.replace(/[&<>"']/g, (char) => ({
@@ -31,7 +63,7 @@ function documentHtml(document) {
 
   // Sanitization is independent of the editor. Documents never get scripts,
   // embedded frames, SVG, remote images, or arbitrary CSS in the print process.
-  const content = sanitizeHtml(document.html, {
+  let content = sanitizeHtml(document.html, {
     allowedTags: [
       'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'sub', 'sup',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre',
@@ -39,20 +71,24 @@ function documentHtml(document) {
       'tfoot', 'tr', 'td', 'th', 'colgroup', 'col', 'caption',
     ],
     allowedAttributes: {
-      '*': ['style'],
+      '*': ['style', 'data-word-format'],
       div: ['class'],
       img: ['src', 'alt', 'width', 'height'],
       ol: ['start'],
       td: ['colspan', 'rowspan'],
       th: ['colspan', 'rowspan'],
       col: ['width', 'span'],
-      table: ['data-jscript-layout'],
+      table: ['data-jscript-layout', 'data-jscript-print-columns'],
     },
     allowedClasses: { div: ['page-break'] },
     allowedSchemes: ['data'],
     allowedSchemesByTag: { img: ['data'] },
     allowProtocolRelative: false,
     allowedStyles: {
+      img: {
+        'aspect-ratio': [/^\d{1,5}(?:\.\d{1,4})?\s*\/\s*\d{1,5}(?:\.\d{1,4})?$/],
+        'object-fit': [/^(fill|contain|cover|none|scale-down)$/],
+      },
       table: {
         '--jscript-column-left': [/^(?:\d{1,2}(?:\.\d+)?|100)%$/],
         '--jscript-column-right': [/^(?:\d{1,2}(?:\.\d+)?|100)%$/],
@@ -66,29 +102,56 @@ function documentHtml(document) {
         'font-weight': [/^(normal|bold|[1-9]00)$/],
         'font-style': [/^(normal|italic)$/],
         'text-decoration': [/^(none|underline|line-through|underline line-through)$/],
-        'line-height': [/^(?:\d(?:\.\d{1,2})?|\d{1,3}%)$/],
+        'line-height': [/^(?:\d(?:\.\d{1,4})?|10(?:\.0{1,4})?|\d{1,3}%)$/, POINT_LINE],
+        'letter-spacing': [/^normal$/],
+        'text-indent': [SIGNED_INDENT],
+        margin: [MARGINS],
+        padding: [PADDINGS],
+        'margin-top': [PARAGRAPH_SPACE],
+        'margin-bottom': [PARAGRAPH_SPACE],
+        'margin-right': [SIGNED_INDENT, /^(auto|0)$/],
+        'padding-top': [PADDING],
+        'padding-right': [PADDING],
+        'padding-bottom': [PADDING],
+        'padding-left': [PADDING],
+        'vertical-align': [/^(top|middle|bottom)$/],
+        ...BORDER_STYLES,
         width: [LENGTH],
         height: [LENGTH],
         'min-width': [LENGTH],
-        'margin-left': [LENGTH],
+        'margin-left': [LENGTH, SIGNED_INDENT, /^(auto|0)$/],
         'page-break-before': [/^(always|auto)$/],
         'page-break-after': [/^(always|auto)$/],
         'break-before': [/^(page|auto)$/],
-        'break-after': [/^(page|auto)$/],
+        'break-after': [/^(page|auto|avoid)$/],
       },
     },
     transformTags: {
+      '*': (tagName, attributes) => {
+        const attribs = { ...attributes };
+        if (WORD_FORMAT_TAGS.has(tagName) && ['true', '1', ''].includes(attribs['data-word-format'])) {
+          attribs['data-word-format'] = 'true';
+        } else {
+          delete attribs['data-word-format'];
+        }
+        return { tagName, attribs };
+      },
       table: (tagName, attributes) => {
         const attribs = { ...attributes };
+        // The temporary marker must only originate in validated TablePlus metadata.
+        delete attribs['data-jscript-print-columns'];
+        const raw = attribs['data-column-size'];
+        const parts = typeof raw === 'string' && raw.length <= 2000 ? raw.split(',').map(value => value.trim()) : [];
+        const valid = parts.length > 0 && parts.length <= 100 && parts.every(value => /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value) && Number(value) > 0 && Number(value) <= 100);
         if (attribs['data-jscript-layout'] !== 'columns') {
           delete attribs['data-jscript-layout'];
+          if (valid) {
+            const values = parts.map(Number);
+            const total = values.reduce((sum, value) => sum + value, 0);
+            attribs['data-jscript-print-columns'] = values.map(value => Math.round(value / total * 100000000) / 1000000).join(',');
+          }
         } else {
-          // TablePlus serializes widths as metadata, not <colgroup>. Rebuild only
-          // numeric CSS values here before the untrusted attributes are stripped.
-          const raw = attribs['data-column-size'];
-          const parts = typeof raw === 'string' && raw.length <= 2000 ? raw.split(',').map(value => value.trim()) : [];
-          const valid = parts.length === 2 && parts.every(value => /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value) && Number(value) > 0 && Number(value) <= 100);
-          const values = valid ? parts.map(Number) : [50, 50];
+          const values = valid && parts.length === 2 ? parts.map(Number) : [50, 50];
           const total = values[0] + values[1];
           const left = Math.round(values[0] / total * 100000000) / 1000000;
           const right = Math.round(values[1] / total * 100000000) / 1000000;
@@ -96,12 +159,20 @@ function documentHtml(document) {
         }
         return { tagName, attribs };
       },
-      img: (tagName, attributes) => ({
-        tagName,
-        attribs: IMAGE_DATA.test(attributes.src || '')
-          ? attributes
-          : { alt: attributes.alt || '' },
-      }),
+      img: (tagName, attributes) => {
+        if (!IMAGE_DATA.test(attributes.src || '')) return { tagName, attribs: { alt: attributes.alt || '' } };
+        const attribs = { ...attributes };
+        const width = imageDimension(attribs.width);
+        const height = imageDimension(attribs.height);
+        if (width === null) delete attribs.width;
+        else attribs.width = String(width);
+        if (height === null) delete attribs.height;
+        else attribs.height = String(height);
+        if (width !== null && height !== null) {
+          attribs.style = `${attribs.style || ''};aspect-ratio:${width} / ${height};object-fit:fill`;
+        }
+        return { tagName, attribs };
+      },
       div: (tagName, attributes) => ({
         tagName,
         attribs: attributes['data-type'] === 'page-break'
@@ -109,6 +180,47 @@ function documentHtml(document) {
           : attributes,
       }),
     },
+  });
+
+  // Sanitization has produced canonical tags and a numeric-only temporary marker.
+  // Emit a real column grid, which also keeps widths correct with merged cells.
+  content = content.replace(/(<table\b[^>]*>)(\s*<colgroup\b[^>]*>[\s\S]*?<\/colgroup>)?/g, (match, opening) => {
+    const metadata = opening.match(/ data-jscript-print-columns="([\d.,]+)"/);
+    if (!metadata) return match;
+    const columns = metadata[1].split(',').map(value => `<col style="width:${value}%" />`).join('');
+    return `${opening.replace(metadata[0], '')}<colgroup>${columns}</colgroup>`;
+  });
+
+  // Word places a list marker in the paragraph's hanging-indent area. HTML's
+  // outside marker otherwise sits beyond the printable page when list padding is
+  // zero. Move a small part of the paragraph's left indent to the li. Word's
+  // negative first-line indent positions its marker, not its body text; HTML
+  // already supplies that marker, so the first paragraph's lines must align.
+  content = content.replace(/(<li\b[^>]*>)(\s*)(<p\b(?=[^>]* data-word-format="true")[^>]*>)/g, (_match, item, whitespace, paragraph) => {
+    const style = paragraph.match(/ style="([^"]*)"/)?.[1] || '';
+    const declarations = style.split(';').map(value => value.trim().split(/:(.*)/s));
+    let left = 0;
+    let first = 0;
+    const typography = [];
+    for (const [property, raw] of declarations) {
+      const value = (raw || '').replace(/\s*!important\s*$/i, '').trim();
+      if (property === 'margin') {
+        const sides = value.split(/\s+/);
+        left = parseFloat(sides[3] || sides[1] || sides[0]) || 0;
+      } else if (property === 'margin-left') left = parseFloat(value) || 0;
+      else if (property === 'text-indent') first = parseFloat(value) || 0;
+      else if (property === 'font-family' || property === 'font-size') typography.push(`${property}:${value}`);
+    }
+    left = Math.max(0, left);
+    first = Math.max(0, first);
+    const markerSpace = 12;
+    const transferred = Math.min(markerSpace, left);
+    const appendStyle = (opening, extra) => / style="/.test(opening)
+      ? opening.replace(/ style="([^"]*)"/, (_attribute, original) => ` style="${original};${extra}"`)
+      : opening.replace(/>$/, ` style="${extra}">`);
+    item = appendStyle(item, [`margin-left:${markerSpace}pt`, ...typography].join(';'));
+    paragraph = appendStyle(paragraph, `margin-left:${left - transferred}pt !important;text-indent:${first}pt !important`);
+    return item + whitespace + paragraph;
   });
 
   return `<!doctype html><html lang="it"><head><meta charset="utf-8">
@@ -120,9 +232,13 @@ html { background: white; }
 body { margin: 0; color: #20212b; font: 12pt/${layout.lineSpacing} 'Segoe UI', Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow-wrap: break-word; }
 p { margin: ${layout.paragraphBefore}pt 0 ${layout.paragraphAfter}pt; min-height: 1em; orphans: 3; widows: 3; }
 p:empty::before { content: '\\00a0'; }
+p[data-word-format="true"] { min-height: 0; }
 h1, h2, h3, h4, h5, h6 { color: #20212b; line-height: 1.2; break-after: avoid; margin: 1em 0 .45em; }
 h1 { font-size: 28pt; } h2 { font-size: 19pt; } h3 { font-size: 14pt; }
+:is(h1,h2,h3,h4,h5,h6)[data-word-format="true"] { font-weight: 400; letter-spacing: normal; color: inherit; }
+[data-word-format="true"] strong, [data-word-format="true"] b { font-weight: 700; }
 ul, ol { padding-left: 1.6em; }
+ul:has(> li > [data-word-format="true"]), ol:has(> li > [data-word-format="true"]) { margin-top: 0; margin-bottom: 0; padding-left: 0; }
 blockquote { margin: 1em 0; padding: .3em 1em; border-left: 3px solid #b5a4e5; color: #5d576a; }
 pre { background: #f5f4f7; border-radius: 6px; padding: 1em; white-space: pre-wrap; }
 code { font-family: Consolas, monospace; font-size: .9em; }
@@ -130,6 +246,7 @@ img { max-width: 100%; height: auto; }
 table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 1em 0; }
 td, th { border: 1px solid #d7d4df; padding: 8px 10px; vertical-align: top; min-width: 1em; }
 th { background: #f4f1fa; font-weight: 600; text-align: left; }
+th[data-word-format="true"] { font-weight: 400; background: transparent; color: inherit; }
 tr { break-inside: avoid; } thead { display: table-header-group; }
 table[data-jscript-layout="columns"] { border: 0; margin: 0; break-inside: auto; }
 table[data-jscript-layout="columns"] > :is(thead, tbody, tfoot) > tr { break-inside: auto; }

@@ -17,7 +17,7 @@
     "pack": "npm run build && node scripts/package-portable.mjs JScript-0.3.2-Windows",
     "pack:exe": "electron-builder --prepackaged release/JScript-0.3.2-Windows --win portable --x64",
     "pack:installer": "electron-builder --prepackaged release/JScript-0.3.2-Windows --win nsis --x64",
-    "test:desktop": "node tests/desktop.cjs && node tests/layout-desktop.cjs && node tests/pagination-desktop.cjs && node tests/columns-desktop.cjs && node tests/ribbon-desktop.cjs",
+    "test:desktop": "node tests/desktop.cjs && node tests/layout-desktop.cjs && node tests/pagination-desktop.cjs && node tests/pagination-hanging-indent.cjs && node tests/columns-desktop.cjs && node tests/ribbon-desktop.cjs",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
@@ -41,7 +41,8 @@
     "react-dom": "^19.2.0",
     "sanitize-html": "^2.17.0",
     "tiptap-pagination-plus": "3.1.0",
-    "tiptap-table-plus": "3.1.0"
+    "tiptap-table-plus": "3.1.0",
+    "jszip": "^3.10.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
@@ -53,7 +54,8 @@
     "electron-builder": "^26.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vite": "^7.1.0"
+    "vite": "^7.1.0",
+    "happy-dom": "^20.14.6"
   },
   "build": {
     "appId": "it.jacopo.jscript",

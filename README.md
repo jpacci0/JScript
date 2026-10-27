@@ -14,7 +14,7 @@ JScript è un editor di documenti per Windows, pensato per scrivere in uno spazi
 
 Gli eseguibili non sono firmati con un certificato di code signing: Windows può mostrare un avviso all'avvio.
 
-La versione **0.3.2** organizza il pannello Layout in una barra compatta a quattro gruppi, con testi da 10 px e campi affiancati alti 28 px. Una freccia nella riga delle schede permette di ridurre o mostrare il pannello. Logica del documento, colonne e paginazione sono invariate.
+La release **0.3.2** resta il download pubblicato indicato sopra. Il codice corrente di `main` include aggiornamenti successivi: titolo, stampa e salvataggio nella barra del logo; controlli Layout in menu compatti; importazione Word più completa; correzione delle parole spezzate al cambio pagina negli elenchi importati. Queste modifiche del sorgente non aggiornano automaticamente gli eseguibili della release 0.3.2.
 
 ## Avviare l'app
 
@@ -39,7 +39,7 @@ La modalità senza installazione riguarda il programma. **Le bozze rimangono nel
 3. Inserisci immagini PNG, JPEG o WebP e tabelle. La barra contestuale delle tabelle consente di aggiungere o eliminare righe e colonne.
 4. La bozza viene salvata automaticamente sul dispositivo. **Salva copia** crea un file `.jscript` nella posizione scelta.
 5. Apri **Layout** per scegliere A4, A5 o Letter, orientamento verticale/orizzontale, margini e spaziatura. Le modifiche si applicano al documento intero e vengono salvate insieme alla bozza.
-6. Dal menu accanto a **Salva copia** puoi esportare in Word, PDF o testo semplice. La stampa è disponibile nella barra del documento.
+6. Dal menu accanto a **Salva copia** puoi esportare in Word, PDF o testo semplice. Titolo, stato di salvataggio, stampa e comandi del documento sono nella barra superiore accanto al logo.
 
 Sono disponibili tema chiaro e scuro, modalità concentrazione, zoom, ricerca nel testo, navigazione per titoli e conteggio di parole e caratteri. La struttura laterale serve a navigare: non inserisce un sommario automatico nel documento.
 
@@ -59,15 +59,19 @@ Sono disponibili tema chiaro e scuro, modalità concentrazione, zoom, ricerca ne
 | Formato | Apertura | Esportazione | Uso previsto |
 | --- | --- | --- | --- |
 | `.jscript` | Sì | Sì | Conservare contenuto, formattazione e impostazioni Layout di JScript |
-| `.docx` | Sì | Sì | Scambiare documenti Word semplici |
+| `.docx` | Sì | Sì | Scambiare testo, formattazione, tabelle e geometria di pagina supportati |
 | `.txt` | Sì | Sì | Testo senza formattazione |
 | `.html`, `.htm` | Sì | No | Importare contenuti essenziali, eliminando gli stili avanzati e le immagini esterne |
 | `.pdf` | No | Sì | Condividere una versione con il layout scelto |
 | `.doc` | No | No | Il vecchio formato Word non è supportato |
 
-**La compatibilità DOCX è essenziale, non una riproduzione completa di Word.** L'importazione privilegia testo e struttura: impaginazione, font, spaziature e stili complessi possono cambiare. Intestazioni, piè di pagina, revisioni, commenti, oggetti flottanti e sommari automatici non sono gestiti. In questa versione l'esportazione conserva il testo dei collegamenti, ma non le relative destinazioni.
+L'importazione DOCX legge direttamente il documento Word e conserva le proprietà supportate: font, dimensioni, colori anche da tema, stili ereditati, rientri, spazi prima/dopo e interlinea; elenchi, collegamenti, immagini incorporate e tabelle con larghezze, celle unite, bordi e riempimenti. Recupera formato A4/A5/Letter, orientamento e margini della prima sezione. I font assenti sul PC vengono sostituiti dal sistema.
 
-L'editor mostra **fogli separati con paginazione automatica**: anche le righe vuote proseguono sul foglio successivo. Le pagine si aggiornano mentre aggiungi o elimini testo e quando modifichi il layout. Il documento resta unico, con una sola cronologia Annulla/Ripristina.
+**Non è una riproduzione completa di Word.** Formati pagina personalizzati, sezioni con geometrie diverse, tabulazioni, numerazioni speciali e oggetti flottanti possono essere adattati. Intestazioni, piè di pagina, note e commenti non sono importati; le revisioni diventano testo finale e i campi automatici non vengono ricalcolati. Se sono rilevati elementi adattati, **Dettagli Word** ne mostra l'elenco, conservato anche nella copia `.jscript`.
+
+Il salvataggio nativo e l'esportazione DOCX mantengono gli attributi Word supportati, inclusi i rientri e le destinazioni dei collegamenti ammessi. Non viene conservato il pacchetto Word originale per una riapertura senza perdite.
+
+L'editor mostra **fogli separati con paginazione automatica**: anche le righe vuote proseguono sul foglio successivo. Le pagine si aggiornano mentre aggiungi o elimini testo e quando modifichi il layout. Il documento resta unico, con una sola cronologia Annulla/Ripristina. Negli elenchi Word il rientro sporgente del punto o numero non viene applicato di nuovo al testo: le prime lettere restano con la riga anche al cambio pagina.
 
 Esportazione e stampa usano le stesse impostazioni Layout. I motori di impaginazione possono però distribuire diversamente testo e tabelle: la vista dell'editor non garantisce una corrispondenza esatta con Word o PDF. Controlla il documento esportato prima di condividerlo.
 
@@ -75,22 +79,22 @@ Il limite di importazione è 25 MB per documento; le immagini aggiunte dalla bar
 
 ## Layout del documento
 
-La scheda **Layout**, accanto a **Scrittura**, organizza i controlli in quattro gruppi compatti:
+La scheda **Layout**, accanto a **Scrittura**, mostra quattro pulsanti con un riepilogo delle impostazioni. Ogni pulsante apre un pannello compatto:
 
 - **Pagina:** formato A4, A5 o Letter e orientamento verticale/orizzontale.
 - **Margini:** preset Normali (20 mm), Stretti (12,7 mm), Ampi (25,4 mm), oppure quattro valori personalizzati da 5 a 50 mm.
-- **Spaziatura:** interlinea da 1 a 3 e spazio prima/dopo ogni paragrafo da 0 a 48 punti. I titoli conservano il proprio stile.
+- **Spaziatura:** interlinea da 1 a 3 e spazio prima/dopo da 0 a 48 punti. La modifica sostituisce i corrispondenti valori importati da Word; i titoli creati in JScript conservano il proprio stile.
 - **Colonne:** sezioni con due colonne uguali oppure una laterale più stretta.
 
-I campi e le etichette sono affiancati, con testi da 10 px e controlli alti 28 px; le frecce numeriche restano visibili. La freccia **Riduci/Mostra** nella riga delle schede chiude o riapre il pannello. Quando è chiuso, anche un clic su **Scrittura** o **Layout** lo riapre.
+I pannelli si aprono sotto **Pagina**, **Margini**, **Spaziatura** o **Colonne** e si chiudono con Esc o un clic esterno. I campi numerici restano affiancati alle etichette e alle frecce di incremento. La freccia **Riduci/Mostra** nella riga delle schede chiude o riapre gli strumenti; un clic su **Scrittura** o **Layout** li riapre. La barra superiore unica e i pannelli a comparsa lasciano più altezza al foglio sui portatili.
 
 **Ripristina layout** ritorna ad A4 verticale, margini di 20 mm, interlinea 1,7, spazio prima 0 pt e dopo 10,8 pt.
 
-I campi numerici si applicano premendo Invio o passando al controllo successivo. Le impostazioni valgono per il documento intero, vengono recuperate con la bozza e conservate nei file `.jscript`. I vecchi documenti senza impostazioni Layout usano i valori predefiniti. Le esportazioni DOCX, PDF e la stampa ricevono formato, orientamento, margini e spaziature; i driver di stampa possono imporre propri limiti fisici. L'importazione di file Word esterni continua a privilegiare testo e struttura e non recupera il loro layout originale.
+I campi numerici si applicano premendo Invio o passando al controllo successivo. Le impostazioni valgono per il documento intero, vengono recuperate con la bozza e conservate nei file `.jscript`. I vecchi documenti senza impostazioni Layout usano i valori predefiniti. Le esportazioni DOCX, PDF e la stampa ricevono formato, orientamento, margini e spaziature; i driver di stampa possono imporre propri limiti fisici. Un file Word può mantenere spaziature diverse per paragrafo finché non le sostituisci dal pannello **Spaziatura**.
 
 ## Sezioni a due colonne
 
-Nella scheda **Layout**, scegli **Due uguali** (50/50) oppure **Laterale stretta** (33/67). Il paragrafo corrente o i blocchi selezionati passano nella colonna sinistra; la destra parte vuota. Puoi scrivere nelle due colonne in modo indipendente. Le sezioni vengono esportate senza bordi in Word e PDF.
+Nella scheda **Layout**, apri **Colonne** e scegli **Due uguali** (50/50) oppure **Laterale stretta** (33/67). Il paragrafo corrente o i blocchi selezionati passano nella colonna sinistra; la destra parte vuota. Puoi scrivere nelle due colonne in modo indipendente. Le sezioni vengono esportate senza bordi in Word e PDF.
 
 - **Aggiungi sezione** inserisce un'altra coppia di colonne sotto quella corrente.
 - **Tab** passa fra le celle; dall'ultima aggiunge una nuova sezione.
@@ -109,7 +113,7 @@ Non sono presenti sincronizzazione cloud, collaborazione o invio automatico dei 
 
 ## Sviluppo
 
-Stack: Electron 41, React 19, TypeScript, Vite 7 e Tiptap 3. `tiptap-pagination-plus` e `tiptap-table-plus`, entrambi alla versione 3.1.0, gestiscono pagine e tabelle nell'editor. Mammoth gestisce l'importazione DOCX; `docx` l'esportazione. DOMPurify e `sanitize-html` filtrano i contenuti importati e quelli destinati alla stampa.
+Stack: Electron 41, React 19, TypeScript, Vite 7 e Tiptap 3. `tiptap-pagination-plus` e `tiptap-table-plus`, entrambi alla versione 3.1.0, gestiscono pagine e tabelle nell'editor. L'importatore OOXML usa JSZip per leggere i DOCX; `docx` genera le esportazioni. DOMPurify e `sanitize-html` filtrano rispettivamente l'HTML importato e quello destinato alla stampa.
 
 Servono **Node.js per Windows 22.12 o successivo**, pnpm e Windows x64 per confezionare l'app desktop. Dalla cartella del progetto:
 
@@ -124,7 +128,7 @@ pnpm desktop:dev
 | `pnpm desktop:dev` | Avvia Vite ed Electron insieme |
 | `pnpm build` | Controlla i tipi TypeScript e genera `dist` |
 | `pnpm test` | Esegue i test dei documenti |
-| `pnpm test:desktop` | Esegue le verifiche desktop, Layout, paginazione, colonne e barra riducibile; prepara prima la build |
+| `pnpm test:desktop` | Esegue le verifiche desktop, Layout, paginazione anche con elenchi Word, colonne e barra riducibile; prepara prima la build |
 | `pnpm run pack` | Ricompila e crea la cartella `release/JScript-0.3.2-Windows` |
 | `pnpm pack:exe` | Crea l'eseguibile unico dalla cartella già preparata |
 | `pnpm pack:installer` | Crea l'installer dalla cartella già preparata |

@@ -1,0 +1,32 @@
+/* Imported Word values live in inline styles and leave old documents unchanged. */
+.tiptap h1[data-word-format='true'],
+.tiptap h2[data-word-format='true'],
+.tiptap h3[data-word-format='true'],
+.tiptap h4[data-word-format='true'],
+.tiptap h5[data-word-format='true'],
+.tiptap h6[data-word-format='true'] { font-weight: 400; letter-spacing: normal; color: inherit; }
+.tiptap [data-word-format='true'] strong { font-weight: 700; }
+/* Direct TablePlus rows use CSS grid; grouped rowspan rows keep native cells. */
+.tiptap .table-plus > tr > [data-word-valign='middle'],
+.tiptap .table-plus > tr > [data-word-valign='bottom'] { display: flex; flex-direction: column; }
+.tiptap .table-plus > tr > [data-word-valign='middle'] { justify-content: center; }
+.tiptap .table-plus > tr > [data-word-valign='bottom'] { justify-content: flex-end; }
+@media print {
+  .tiptap .table-plus > tr > [data-word-valign] { display: table-cell; }
+}
+/* Word paragraphs already carry list indentation and paragraph spacing. */
+.tiptap ul:has(> li > [data-word-format='true']),
+.tiptap ol:has(> li > [data-word-format='true']) { margin-top: 0; margin-bottom: 0; padding-left: 0; }
+
+/* A repeating Word header row does not itself imply bold text or a fill. */
+.tiptap th[data-word-format='true'] { font-weight: 400; background: transparent; color: inherit; }
+
+/* Pagination treats each rowspan group as a native table: keep every group
+   at the wrapper width. Cell decorations supply its shared column grid. */
+.tiptap .table-row-group { width: 100%; }
+.tiptap .table-row-group > tbody { width: 100%; table-layout: fixed; border-collapse: collapse; }
+/* The hanging indent belongs to Word's list marker, before its suffix tab.
+   Applying it again to body text lets Chromium fit a few characters beside
+   pagination's full-width float. Preserve the source style for Word/native
+   round trips, and leave genuine hanging paragraphs outside lists intact. */
+.tiptap li > [data-word-hanging='true']:first-child { text-indent: 0 !important; }

@@ -5,3 +5,5 @@ release/
 test-results/
 *.log
 *.tsbuildinfo
+build-cache/
+docs/JScript-anteprima.html

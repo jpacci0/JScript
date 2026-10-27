@@ -256,13 +256,17 @@ function checkNative(document, expectedText, expectedParagraphs) {
 
     const previousPages = await page.locator(PAGE_SELECTOR).count();
     await page.getByRole('tab', { name: 'Layout', exact: true }).click();
+    await page.getByRole('button', { name: 'Pagina', exact: true }).click();
     await page.getByLabel('Formato pagina', { exact: true }).selectOption('A5');
     await page.getByLabel('Orientamento', { exact: true }).selectOption('landscape');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Margini', exact: true }).click();
     for (const [label, value] of [['Margine superiore', 15], ['Margine destro', 17], ['Margine inferiore', 19], ['Margine sinistro', 21]]) {
       const input = page.getByLabel(label, { exact: true });
       await input.fill(String(value));
       await input.blur();
     }
+    await page.keyboard.press('Escape');
     await pageCountAtLeast(page, previousPages + 1);
     await assertNoLinesInPageGaps(page);
     const layoutMetrics = await page.locator('.tiptap').evaluate(element => {
@@ -283,6 +287,7 @@ function checkNative(document, expectedText, expectedParagraphs) {
     await page.reload();
     await expect(editor).toContainText(LONG_TEXT);
     await expect(page.locator('.tiptap > p')).toHaveCount(1);
+    await page.keyboard.press('Escape');
     await pageCountAtLeast(page, previousPages + 1);
     await assertNoLinesInPageGaps(page);
 
@@ -318,6 +323,6 @@ function checkNative(document, expectedText, expectedParagraphs) {
     throw error;
   } finally {
     await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
-    await app.close().catch(() => {});
+
   }
 })().catch(error => { console.error(error); process.exit(1); });

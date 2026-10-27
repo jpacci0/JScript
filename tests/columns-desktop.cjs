@@ -39,7 +39,15 @@ async function settled(page) {
   });
 }
 
+async function openGroup(page, name) {
+  const trigger = page.getByRole('button', { name, exact: true });
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+  await expect(page.getByRole('dialog', { name, exact: true })).toBeVisible();
+}
+
 async function clickButton(page, name) {
+  if (['Due uguali', 'Laterale stretta', 'Aggiungi sezione', 'Dividi dal cursore', 'Torna a una colonna'].includes(name)) await openGroup(page, 'Colonne');
+  if (name === 'Ripristina layout') await openGroup(page, 'Pagina');
   const button = page.getByRole('button', { name, exact: true });
   await button.scrollIntoViewIfNeeded();
   await button.click();
@@ -47,7 +55,7 @@ async function clickButton(page, name) {
 
 async function openLayout(page) {
   await page.getByRole('tab', { name: 'Layout', exact: true }).click();
-  await expect(page.getByLabel('Formato pagina', { exact: true })).toBeVisible();
+  await expect(page.locator('.layout-panel')).toBeVisible();
 }
 
 async function readDocument(page) {
@@ -67,6 +75,7 @@ async function persisted(page, title, project, expected) {
 }
 
 async function setNumber(page, label, value) {
+  await openGroup(page, label.startsWith('Margine') ? 'Margini' : 'Spaziatura');
   const input = page.getByLabel(label, { exact: true });
   await input.fill(String(value));
   await input.blur();
@@ -74,32 +83,33 @@ async function setNumber(page, label, value) {
 }
 
 async function assertReadableLayout(page) {
-  await settled(page);
-  const metrics = await page.locator('.layout-panel').evaluate(panel => {
-    const controls = [...panel.querySelectorAll('.layout-field input, .layout-field select')].map(control => {
-      const field = control.closest('.layout-field');
-      const label = field.querySelector(':scope > label, :scope > span');
-      return {
-        name: control.getAttribute('aria-label'),
-        controlFont: parseFloat(getComputedStyle(control).fontSize),
-        labelFont: parseFloat(getComputedStyle(label).fontSize),
-        label: label.textContent,
-      };
-    });
-    return { controls, legends: [...panel.querySelectorAll('.layout-group legend')].map(legend => parseFloat(getComputedStyle(legend).fontSize)) };
-  });
-  assert.equal(metrics.controls.length, 10, 'Tre selettori e sette campi numerici nel pannello pagina.');
-  for (const metric of metrics.controls) {
-    assert.ok(metric.labelFont >= 10, `${metric.name}: etichetta leggibile di almeno 10 px (${metric.labelFont}).`);
-    assert.ok(metric.controlFont >= 10, `${metric.name}: valore leggibile di almeno 10 px (${metric.controlFont}).`);
+  const controls = [];
+  for (const group of ['Pagina', 'Margini', 'Spaziatura']) {
+    await openGroup(page, group);
+    await settled(page);
+    controls.push(...await page.getByRole('dialog', { name: group, exact: true }).evaluate(panel =>
+      [...panel.querySelectorAll('.layout-field input, .layout-field select')].map(control => {
+        const field = control.closest('.layout-field');
+        return {
+          name: control.getAttribute('aria-label'),
+          controlFont: parseFloat(getComputedStyle(control).fontSize),
+          labelFont: parseFloat(getComputedStyle(field.querySelector(':scope > label, :scope > span')).fontSize),
+        };
+      })));
   }
-  assert.ok(metrics.legends.length >= 3 && metrics.legends.every(size => size >= 10), 'Le legende dei gruppi sono di almeno 10 px.');
+  assert.equal(controls.length, 10, 'Tre selettori e sette campi numerici nei gruppi layout.');
+  for (const metric of controls) {
+    assert.ok(metric.labelFont >= 10, `${metric.name}: etichetta leggibile di almeno 10 px.`);
+    assert.ok(metric.controlFont >= 10, `${metric.name}: valore leggibile di almeno 10 px.`);
+  }
   await expect(page.locator('.layout-stepper button')).toHaveCount(14);
   for (const field of NUMBER_FIELDS) {
+    await openGroup(page, field.label.startsWith('Margine') ? 'Margini' : 'Spaziatura');
     const lower = field.label.toLocaleLowerCase('it-IT');
     await expect(page.getByRole('button', { name: `Aumenta ${lower}`, exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: `Diminuisci ${lower}`, exact: true })).toBeVisible();
   }
+  await page.keyboard.press('Escape');
 }
 
 async function checkSteppers(page, title) {
@@ -347,6 +357,7 @@ async function assertNoTextInPageBreaks(page) {
       selection.addRange(range);
       document.dispatchEvent(new Event('selectionchange'));
     }, SPLIT_BEFORE.length);
+    await openGroup(page, 'Colonne');
     await expect(page.getByRole('button', { name: 'Dividi dal cursore', exact: true })).toBeEnabled();
     await clickButton(page, 'Dividi dal cursore');
     await expect(block.locator('tr')).toHaveCount(3);
@@ -426,6 +437,5 @@ async function assertNoTextInPageBreaks(page) {
     throw error;
   } finally {
     await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
-    await app.close().catch(() => {});
   }
 })().catch(error => { console.error(error); process.exit(1); });

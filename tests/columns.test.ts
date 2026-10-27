@@ -92,14 +92,16 @@ test('DOCX exports borderless fixed-width columns with an 8mm gutter and flowing
   for (const text of ['Contatti', 'Profilo professionale', 'Competenze', 'Esperienze lavorative']) assert.ok(converted.value.includes(text))
 })
 
-test('DOCX ordinary tables keep their borders and header background', async () => {
+test('DOCX ordinary tables preserve their explicit column widths, borders and header background', async () => {
   const doc = document()
   delete doc.content.content![0].attrs!.layout
   doc.content.content![0].content![0].content![0].type = 'tableHeader'
   const xml = zipEntry(await toDocx(doc), 'word/document.xml')
   assert.match(xml, /w:val="single"/)
   assert.match(xml, /w:fill="F0F2F5"/)
-  assert.doesNotMatch(xml, /<w:tblLayout w:type="fixed"\/>/)
+  assert.match(xml, /<w:tblLayout w:type="fixed"\/>/)
+  const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map(match => Number(match[1]))
+  assert.ok(Math.abs(widths[1] / widths[0] - 2) < .01)
 })
 
 test('DOCX column images fit their own content width including the gutter', async () => {

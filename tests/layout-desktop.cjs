@@ -28,12 +28,19 @@ function approximately(actual, expected, label, tolerance = 0.15) {
     `${label}: atteso ${expected}, ricevuto ${actual}`);
 }
 
+async function openGroup(page, name) {
+  const trigger = page.getByRole('button', { name, exact: true });
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+  await expect(page.getByRole('dialog', { name, exact: true })).toBeVisible();
+}
+
 async function openLayout(page) {
   await page.getByRole('tab', { name: 'Layout', exact: true }).click();
-  await expect(page.getByLabel('Formato pagina', { exact: true })).toBeVisible();
+  await openGroup(page, 'Pagina');
 }
 
 async function setNumber(page, label, value) {
+  await openGroup(page, label.startsWith('Margine') ? 'Margini' : 'Spaziatura');
   const input = page.getByLabel(label, { exact: true });
   await input.fill(String(value));
   await input.blur();
@@ -52,6 +59,7 @@ async function assertLayoutControls(page, layout) {
 }
 
 async function assertRenderedLayout(page, layout, widthMm, heightMm) {
+  await page.keyboard.press('Escape');
   // Layout commands and the pagination decorations settle in animation frames.
   await expect(async () => {
     const dimensions = await page.locator('.paper').evaluate(paper => {
@@ -303,6 +311,7 @@ async function assertDocxLayout(filename) {
     await page.locator('.document-open').filter({ has: page.getByText(title, { exact: true }) }).click();
     await openLayout(page);
     await assertLayoutControls(page, CUSTOM_LAYOUT);
+    await openGroup(page, 'Pagina');
     await page.getByRole('button', { name: 'Ripristina layout', exact: true }).click();
     await assertLayoutControls(page, DEFAULT_LAYOUT);
     await assertRenderedLayout(page, DEFAULT_LAYOUT, 210, 297);
@@ -321,6 +330,5 @@ async function assertDocxLayout(filename) {
     throw error;
   } finally {
     await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
-    await app.close().catch(() => {});
   }
 })().catch(error => { console.error(error); process.exit(1); });
